@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 const openRouterAPIURL = "https://openrouter.ai/api/v1/chat/completions"
@@ -16,16 +17,10 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-// Tool represents a tool configuration
-type Tool struct {
-	Type string `json:"type"`
-}
-
 // OpenRouterRequest represents the request payload for OpenRouter API
 type OpenRouterRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
-	Tools    []Tool    `json:"tools,omitempty"`
 }
 
 // OpenRouterResponse represents the response from OpenRouter API
@@ -34,8 +29,8 @@ type OpenRouterResponse struct {
 		Message Message `json:"message"`
 	} `json:"choices"`
 	Error *struct {
-		Message string `json:"message"`
-		Code    string `json:"code"`
+		Message string          `json:"message"`
+		Code    json.RawMessage `json:"code"`
 	} `json:"error,omitempty"`
 }
 
@@ -43,6 +38,12 @@ type OpenRouterResponse struct {
 func SendPrompt(apiKey, model, prompt string, enableWebSearch bool) (string, error) {
 	if apiKey == "" {
 		return "", fmt.Errorf("API key is not configured. Please add your OpenRouter API key to the config file")
+	}
+
+	// Enable web search by appending :online to the model name
+	// This is the recommended OpenRouter approach that works with all models
+	if enableWebSearch && !strings.HasSuffix(model, ":online") {
+		model = model + ":online"
 	}
 
 	// Build request payload
@@ -54,13 +55,6 @@ func SendPrompt(apiKey, model, prompt string, enableWebSearch bool) (string, err
 				Content: prompt,
 			},
 		},
-	}
-
-	// Add web search tool if enabled
-	if enableWebSearch {
-		reqPayload.Tools = []Tool{
-			{Type: "web_search"},
-		}
 	}
 
 	// Marshal request to JSON
@@ -96,12 +90,12 @@ func SendPrompt(apiKey, model, prompt string, enableWebSearch bool) (string, err
 	// Parse response
 	var apiResp OpenRouterResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
+		return "", fmt.Errorf("failed to parse response: %w\nResponse body: %s", err, string(body))
 	}
 
 	// Check for API error
 	if apiResp.Error != nil {
-		return "", fmt.Errorf("API error: %s (code: %s)", apiResp.Error.Message, apiResp.Error.Code)
+		return "", fmt.Errorf("API error: %s (code: %s)\nFull response: %s", apiResp.Error.Message, string(apiResp.Error.Code), string(body))
 	}
 
 	// Extract response content
