@@ -87,11 +87,30 @@ Write a short poem about:
 EOF
 ```
 
+### Using input files
+
+Read user prompt from a file:
+```bash
+llmp -u prompt.txt
+```
+
+Provide a system prompt from a file:
+```bash
+echo "Hola" | llmp -s system_prompt.txt
+```
+
+Combine both:
+```bash
+llmp -s system.txt -u prompt.txt
+```
+
 ## Command-line Flags
 
 - `-model <string>` - Specify the OpenRouter model to use (defaults to config value)
 - `-o <file>` - Write output to a file instead of stdout
 - `-ws` - Enable web search capability
+- `-u <file>` - Read user prompt from a file
+- `-s <file>` - Read system prompt from a file
 - `-h` - Show help message
 
 ## Examples

@@ -35,7 +35,7 @@ type OpenRouterResponse struct {
 }
 
 // SendPrompt sends a prompt to the OpenRouter API and returns the response
-func SendPrompt(apiKey, model, prompt string, enableWebSearch bool) (string, error) {
+func SendPrompt(apiKey, model, systemPrompt, prompt string, enableWebSearch bool) (string, error) {
 	if apiKey == "" {
 		return "", fmt.Errorf("API key is not configured. Please add your OpenRouter API key to the config file")
 	}
@@ -46,15 +46,23 @@ func SendPrompt(apiKey, model, prompt string, enableWebSearch bool) (string, err
 		model = model + ":online"
 	}
 
+	// Build messages
+	var messages []Message
+	if systemPrompt != "" {
+		messages = append(messages, Message{
+			Role:    "system",
+			Content: systemPrompt,
+		})
+	}
+	messages = append(messages, Message{
+		Role:    "user",
+		Content: prompt,
+	})
+
 	// Build request payload
 	reqPayload := OpenRouterRequest{
-		Model: model,
-		Messages: []Message{
-			{
-				Role:    "user",
-				Content: prompt,
-			},
-		},
+		Model:    model,
+		Messages: messages,
 	}
 
 	// Marshal request to JSON
