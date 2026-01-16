@@ -119,7 +119,7 @@ func promptForAPIKey() string {
 
 // promptForDefaultModel prompts the user for a default model with a sane fallback
 func promptForDefaultModel() string {
-	const defaultModel = "openai/gpt-3.5-turbo"
+	const defaultModel = "openai/gpt-oss-120b"
 
 	// Open /dev/tty to read from terminal directly (not stdin)
 	tty, err := os.Open("/dev/tty")
