@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"llmp/openrouter"
 	"os"
 )
 
@@ -71,22 +72,37 @@ func main() {
 	}
 
 	// Send prompt to OpenRouter API
-	response, err := SendPrompt(config.APIKey, model, systemPrompt, prompt, *webSearchFlag)
+	stream, err := openrouter.SendPrompt(config.APIKey, model, systemPrompt, prompt, *webSearchFlag)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+	defer stream.Close()
 
 	// Write response to output
 	if *outputFlag != "" {
 		// Write to file
-		if err := os.WriteFile(*outputFlag, []byte(response), 0644); err != nil {
+		file, err := os.Create(*outputFlag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating output file: %v\n", err)
+			os.Exit(1)
+		}
+		defer file.Close()
+
+		if _, err := io.Copy(file, stream); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing to file: %v\n", err)
 			os.Exit(1)
 		}
+
 		fmt.Fprintf(os.Stderr, "Response written to: %s\n", *outputFlag)
+
 	} else {
 		// Write to stdout
-		fmt.Println(response)
+		if _, err := io.Copy(os.Stdout, stream); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing to stdout: %v\n", err)
+			os.Exit(1)
+		}
+		// Add a newline at the end for clean terminal output
+		fmt.Println()
 	}
 }

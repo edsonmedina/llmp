@@ -1,6 +1,7 @@
-package main
+package openrouter
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -21,6 +22,7 @@ type Message struct {
 type OpenRouterRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
+	Stream   bool      `json:"stream,omitempty"`
 }
 
 // OpenRouterResponse represents the response from OpenRouter API
@@ -34,14 +36,13 @@ type OpenRouterResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// SendPrompt sends a prompt to the OpenRouter API and returns the response
-func SendPrompt(apiKey, model, systemPrompt, prompt string, enableWebSearch bool) (string, error) {
+// SendPrompt sends a prompt to the OpenRouter API and returns the response as a stream
+func SendPrompt(apiKey, model, systemPrompt, prompt string, enableWebSearch bool) (io.ReadCloser, error) {
 	if apiKey == "" {
-		return "", fmt.Errorf("API key is not configured. Please add your OpenRouter API key to the config file")
+		return nil, fmt.Errorf("API key is not configured. Please add your OpenRouter API key to the config file")
 	}
 
 	// Enable web search by appending :online to the model name
-	// This is the recommended OpenRouter approach that works with all models
 	if enableWebSearch && !strings.HasSuffix(model, ":online") {
 		model = model + ":online"
 	}
@@ -63,18 +64,19 @@ func SendPrompt(apiKey, model, systemPrompt, prompt string, enableWebSearch bool
 	reqPayload := OpenRouterRequest{
 		Model:    model,
 		Messages: messages,
+		Stream:   true,
 	}
 
 	// Marshal request to JSON
 	jsonData, err := json.Marshal(reqPayload)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	// Create HTTP request
 	req, err := http.NewRequest("POST", openRouterAPIURL, bytes.NewBuffer(jsonData))
 	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// Set headers
@@ -85,31 +87,17 @@ func SendPrompt(apiKey, model, systemPrompt, prompt string, enableWebSearch bool
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
-	// Parse response
-	var apiResp OpenRouterResponse
-	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w\nResponse body: %s", err, string(body))
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Check for API error
-	if apiResp.Error != nil {
-		return "", fmt.Errorf("API error: %s (code: %s)\nFull response: %s", apiResp.Error.Message, string(apiResp.Error.Code), string(body))
-	}
-
-	// Extract response content
-	if len(apiResp.Choices) == 0 {
-		return "", fmt.Errorf("no response from API")
-	}
-
-	return apiResp.Choices[0].Message.Content, nil
+	return &streamReader{
+		response: resp,
+		reader:   bufio.NewReader(resp.Body),
+	}, nil
 }

@@ -6,6 +6,7 @@ A lightweight command-line tool for interacting with OpenRouter's LLM API. Built
 
 - 🔑 Simple configuration management with auto-generated config file
 - 🤖 Support for any OpenRouter model
+- ⚡ Real-time streaming response
 - 🌐 Optional web search capability
 - 📝 Output to stdout or file
 - 🚀 Zero external dependencies
